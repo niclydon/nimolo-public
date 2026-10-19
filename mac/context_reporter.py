@@ -19,8 +19,8 @@ every 4 minutes and cached in the state file; on bridge
 failure the cache is reused for up to 15 minutes and
 confidence drops back to medium.
 
-Run by LaunchAgent io.niclydon.pets-context every 30 s.
-State lives in ~/.config/pets/context-state.json (the
+Run by LaunchAgent io.niclydon.nimolo-context every 30 s.
+State lives in ~/.config/nimolo/context-state.json (the
 Factotum pets-context service watches its freshness).
 """
 import json
@@ -32,14 +32,14 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
-CFG = Path.home() / ".config" / "pets"
+CFG = Path.home() / ".config" / "nimolo"
 STATE = CFG / "context-state.json"
 BRIDGE = (Path.home() / "Library" / "Application Support"
           / "EventKitBridge")
-# The coordinator's event bus. Override with PETS_BUS_URL
-# when the coordinator lives on another host.
-BUS = os.environ.get("PETS_BUS_URL",
-                     "http://localhost:7891/bus/publish")
+# The bus binds furnace's tailnet address as well as the
+# LAN one; tailnet is the path that works wherever the Mac
+# is (the LAN address is unreachable off-Hearth).
+BUS = "http://100.105.48.36:7891/bus/publish"
 
 CAL_TTL_S = 240        # refresh the calendar read at most this often
 CAL_STALE_S = 900      # reuse a failed read's cache up to this age

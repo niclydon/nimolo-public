@@ -3,10 +3,10 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>io.niclydon.pets</string>
+	<string>io.niclydon.nimolo-dock</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Users/YOURNAME/Applications/Pets.app/Contents/MacOS/Pets</string>
+		<string>/Users/niclydon/Applications/Nimolo Dock.app/Contents/MacOS/Nimolo Dock</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>

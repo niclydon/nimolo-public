@@ -1,8 +1,8 @@
-# Pets: one cast of characters, every screen in the house
+# Nimolo: one cast of characters, every screen in the house
 
 ## The concept
 
-Pets is a small living system, not three separate desk toys. A cast of chibi sprite characters, two friends and Carbon the cat, inhabit the screens of the house as if the screens were rooms: the Pane panel, the Flint TV console, and the MacBook, arranged in a fixed spatial order (Pane, Flint, MacBook) the way rooms line a hallway. A pet exists in exactly one room at a time. It walks out of one screen's edge and into the next, or steps through a portal when the trip is long. Left alone, the cast wanders the whole house on its own: strolling to the neighbouring room, travelling to visit a friend, greeting each other when they meet, talking in small speech bubbles, and, when a human pet meets the cat, petting him. The system is Ambient: nobody has to drive it. It is also fully directable: any pet can be summoned, sent, teleported, fenced out of a room, made to speak, or switched off, by name, at any time.
+Nimolo is a small living system, not three separate desk toys. A cast of chibi sprite characters, two friends and Carbon the cat, inhabit the screens of the house as if the screens were rooms: the Pane panel, the Flint TV console, and the MacBook, arranged in a fixed spatial order (Pane, Flint, MacBook) the way rooms line a hallway. A pet exists in exactly one room at a time. It walks out of one screen's edge and into the next, or steps through a portal when the trip is long. Left alone, the cast wanders the whole house on its own: strolling to the neighbouring room, travelling to visit a friend, greeting each other when they meet, talking in small speech bubbles, and, when a human pet meets the cat, petting him. The system is Ambient: nobody has to drive it. It is also fully directable: any pet can be summoned, sent, teleported, fenced out of a room, made to speak, or switched off, by name, at any time.
 
 ## Components
 

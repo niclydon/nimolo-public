@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>Pets</string>
+	<string>Nimolo Dock</string>
 	<key>CFBundleDisplayName</key>
-	<string>Pets</string>
+	<string>Nimolo Dock</string>
 	<key>CFBundleIdentifier</key>
-	<string>io.niclydon.pets</string>
+	<string>io.niclydon.nimolo</string>
 	<key>CFBundleVersion</key>
 	<string>1.0</string>
 	<key>CFBundleShortVersionString</key>
@@ -15,19 +15,16 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleExecutable</key>
-	<string>Pets</string>
+	<string>Nimolo Dock</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-	<!-- The bus speaks plain HTTP on a private network.
-	     Replace YOUR-COORDINATOR-HOST with the host or IP
-	     of your coordinator before building. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSExceptionDomains</key>
 		<dict>
-			<key>YOUR-COORDINATOR-HOST</key>
+			<key>100.105.48.36</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>

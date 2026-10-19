@@ -6,7 +6,7 @@ import Foundation
 // pet factory's cast on the MacBook screen. Third screen of
 // the pets platform, after Pane and Flint. Same contract as
 // the Flint renderer: the coordinator (pets-mcp on Furnace)
-// writes directive files into ~/.config/pets (pet-<name>:
+// writes directive files into ~/.config/nimolo (pet-<name>:
 // event=, seq=, scale=) and this app only reads them; every
 // second it writes back pet-status (one line per pet:
 // "name=present state=.. x=.. y=.. held=.. falling=.." or
@@ -95,7 +95,7 @@ func configDir() -> URL {
     let env = ProcessInfo.processInfo.environment["PETS_MAC_DIR"]
     if let env = env, !env.isEmpty { return URL(fileURLWithPath: env) }
     return FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".config/pets")
+        .appendingPathComponent(".config/nimolo")
 }
 
 enum PetState: String {
@@ -131,6 +131,9 @@ final class Pet {
     var heldState: PetState = .idle  // state when the drag began
     var lastSeq: Int = -1
     var lastMtime: Date = .distantPast
+    // An arrival waiting on its art pack (v2.9): the
+    // event is re-applied once the frames land.
+    var pendingArrival: (event: String, text: String?)?
     // Stride phase, advanced by DISTANCE actually
     // travelled (pi per 17.1pt step-frame), so the legs,
     // the body bob and the ground can never drift apart
@@ -380,15 +383,13 @@ final class PetView: NSView {
 
 // MARK: event bus client
 //
-// The realtime channel to the coordinator's event bus
-// (default http://localhost:7891; override by writing the
-// base URL into ~/.config/pets/bus-host): publishes this
-// screen's live state once a second and holds an SSE
-// subscription for intents, which then arrive in
-// milliseconds instead of on the next file poll. Auth is
-// a dedicated bus token in ~/.config/pets/bus-token; the
-// coordinator's MCP origin secret never leaves the server.
-// The file channel stays live underneath:
+// The realtime channel to pets-mcp on furnace (tailnet
+// 100.105.48.36:7891): publishes this screen's live state
+// once a second and holds an SSE subscription for intents,
+// which then arrive in milliseconds instead of on the next
+// file poll. Auth is a dedicated bus token in
+// ~/.config/nimolo/bus-token; the MCP origin secret never
+// leaves furnace. The file channel stays live underneath:
 // every directive is both written to a file and published,
 // seq dedupe makes whichever arrives second a no-op, and
 // if the bus is down the files carry on alone.
@@ -402,7 +403,7 @@ final class BusClient: NSObject, URLSessionDataDelegate {
     func start(owner: AppDelegate) {
         self.owner = owner
         let path = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/pets/bus-token")
+            .appendingPathComponent(".config/nimolo/bus-token")
         token = (try? String(contentsOf: path, encoding: .utf8))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard let token, token.count >= 24 else { return }
@@ -418,16 +419,7 @@ final class BusClient: NSObject, URLSessionDataDelegate {
         }
     }
 
-    private static let base: String = {
-        let p = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/pets/bus-host")
-        if let s = try? String(contentsOf: p, encoding: .utf8) {
-            let t = s.trimmingCharacters(
-                in: .whitespacesAndNewlines)
-            if !t.isEmpty { return t }
-        }
-        return "http://localhost:7891"
-    }()
+    static let base = "http://100.105.48.36:7891"
 
     private func request(_ path: String) -> URLRequest? {
         guard let token,
@@ -488,10 +480,9 @@ final class BusClient: NSObject, URLSessionDataDelegate {
                     text = String(extra.dropFirst(5))
                 }
                 DispatchQueue.main.async { [weak self] in
-                    guard let owner = self?.owner,
-                          let pet = owner.pets.first(
-                            where: { $0.name == petName })
+                    guard let owner = self?.owner
                     else { return }
+                    let pet = owner.ensurePet(petName)
                     guard dseq > pet.lastSeq else { return }
                     pet.lastSeq = dseq
                     owner.applyEvent(pet, event, text: text)
@@ -507,6 +498,114 @@ final class BusClient: NSObject, URLSessionDataDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
             [weak self] in self?.subscribe()
         }
+    }
+}
+
+
+// MARK: dynamic art (v2.9)
+//
+// Art lives on the coordinator as per-pet packs (profile
+// mac-240: the 20 frame PNGs + a manifest, served at
+// /packs/<pet>/mac-240/). The bundle seeds the resident
+// cast; any other pet's frames are pulled into
+// ~/.config/nimolo/art/<pet> when it arrives and evicted
+// when the coordinator sends evict_art (its disable).
+// A pet with no art anywhere simply never appears:
+// honest absence over wrong art. Per-pet relative scale
+// for pulled pets still comes from PET_REL_SCALE; the
+// intent payload carries the registry scale and wiring
+// it through is a follow-up.
+final class ArtStore {
+    static let frameKeys = ["idle", "peace", "sit", "sleep"]
+        + (0..<8).map { "walk_r\($0)" }
+        + (0..<8).map { "walk_l\($0)" }
+    private var inFlight: Set<String> = []
+
+    static func cacheDir(_ pet: String) -> URL {
+        configDir().appendingPathComponent("art")
+            .appendingPathComponent(pet)
+    }
+
+    static func loadImages(_ pet: String) -> [String: NSImage] {
+        var out: [String: NSImage] = [:]
+        let bundle = Bundle.main.resourceURL?
+            .appendingPathComponent("frames")
+            .appendingPathComponent(pet)
+        for dir in [cacheDir(pet), bundle].compactMap({ $0 }) {
+            for key in frameKeys {
+                if out[key] == nil,
+                   let img = NSImage(contentsOf: dir
+                        .appendingPathComponent("\(key).png")) {
+                    out[key] = img
+                }
+            }
+            if out.count >= frameKeys.count { break }
+        }
+        return out
+    }
+
+    func pull(_ pet: String, done: @escaping (Bool) -> Void) {
+        if inFlight.contains(pet) { return }
+        inFlight.insert(pet)
+        let token = (try? String(
+            contentsOf: configDir()
+                .appendingPathComponent("bus-token"),
+            encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        func get(_ path: String, _ cb: @escaping (Data?) -> Void) {
+            guard let url = URL(string: BusClient.base + path)
+            else { cb(nil); return }
+            var r = URLRequest(url: url)
+            r.setValue(token, forHTTPHeaderField: "X-Bus-Token")
+            URLSession.shared.dataTask(with: r) { data, resp, _ in
+                cb((resp as? HTTPURLResponse)?.statusCode == 200
+                    ? data : nil)
+            }.resume()
+        }
+        get("/packs/\(pet)/mac-240/manifest.json") { [weak self] data in
+            guard let self, let data,
+                  let man = try? JSONSerialization.jsonObject(
+                    with: data) as? [String: Any],
+                  let files = man["files"] as? [[String: Any]]
+            else {
+                DispatchQueue.main.async {
+                    self?.inFlight.remove(pet); done(false) }
+                return
+            }
+            let names = files.compactMap { $0["path"] as? String }
+            if names.isEmpty {
+                DispatchQueue.main.async {
+                    self.inFlight.remove(pet); done(false) }
+                return
+            }
+            var remaining = names.count
+            var ok = true
+            for name in names {
+                get("/packs/\(pet)/mac-240/\(name)") { fdata in
+                    DispatchQueue.main.async {
+                        if let fdata {
+                            let dir = ArtStore.cacheDir(pet)
+                            try? FileManager.default
+                                .createDirectory(
+                                    at: dir,
+                                    withIntermediateDirectories: true)
+                            try? fdata.write(to: dir
+                                .appendingPathComponent(name))
+                        } else { ok = false }
+                        remaining -= 1
+                        if remaining == 0 {
+                            self.inFlight.remove(pet)
+                            done(ok)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    func evict(_ pet: String) {
+        try? FileManager.default.removeItem(
+            at: ArtStore.cacheDir(pet))
     }
 }
 
@@ -527,6 +626,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var dragMoved = false
     var pairCooldown: [String: Date] = [:]  // "lucas|mike" -> next allowed meet
     var bus: BusClient?
+    let art = ArtStore()
     // Window-aware play (v2.8): where the frontmost
     // window sits, so pets can gather under it.
     var winAnchor: CGFloat? = nil   // window centre x, view coords
@@ -587,30 +687,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func loadFrames() {
-        let base = Bundle.main.resourceURL?
-            .appendingPathComponent("frames")
-        // v2.5's 8-frame cycles need the full walk_r0..7 /
-        // walk_l0..7 set loaded; the old hardcoded list stopped
-        // at r2/l3, so frame() got nil for most steps and the
-        // pet strobed (the Oct 13 night blinking bug).
-        let keys = ["idle", "peace", "sit", "sleep"]
-            + (0..<8).map { "walk_r\($0)" }
-            + (0..<8).map { "walk_l\($0)" }
-        for name in rosterNames() {
+        var names = Set(rosterNames())
+        let artRoot = configDir().appendingPathComponent("art")
+        if let dirs = try? FileManager.default
+            .contentsOfDirectory(atPath: artRoot.path) {
+            names.formUnion(dirs)
+        }
+        for name in names.sorted() {
             let pet = Pet(name: name)
             pet.x = 140 + CGFloat(pets.count) * 300
             pet.dir = pets.count % 2 == 0 ? 1 : -1
-            if let base = base {
-                for key in keys {
-                    let url = base.appendingPathComponent(name)
-                        .appendingPathComponent("\(key).png")
-                    if let img = NSImage(contentsOf: url) {
-                        pet.images[key] = img
-                    }
-                }
-            }
+            pet.images = ArtStore.loadImages(name)
             pets.append(pet)
         }
+    }
+
+    // Pets are created on demand (v2.9): a directive or
+    // intent naming a pet the app has never seen makes
+    // its Pet here, frameless until its art is pulled.
+    func ensurePet(_ name: String) -> Pet {
+        if let pet = pets.first(where: { $0.name == name }) {
+            return pet
+        }
+        let pet = Pet(name: name)
+        pet.x = 140 + CGFloat(pets.count) * 300
+        pet.dir = pets.count % 2 == 0 ? 1 : -1
+        pet.images = ArtStore.loadImages(name)
+        pets.append(pet)
+        view?.pets.append(pet)
+        return pet
+    }
+
+    // The pets worth polling directive files for: every
+    // known pet plus any pet-<name> file on disk, so a
+    // first directive for an unknown pet is still read.
+    func directivePets() -> [Pet] {
+        var names = Set(pets.map { $0.name })
+        let dir = configDir()
+        if let files = try? FileManager.default
+            .contentsOfDirectory(atPath: dir.path) {
+            for f in files where f.hasPrefix("pet-")
+                && f != "pet-status" && f != "pet-status.tmp" {
+                names.insert(String(f.dropFirst(4)))
+            }
+        }
+        return names.sorted().map { ensurePet($0) }
     }
 
     // MARK: mouse (Pane's taps, translated to the mouse)
@@ -856,7 +977,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func pollDirectives() {
         let dir = configDir()
         let fm = FileManager.default
-        for pet in pets {
+        for pet in directivePets() {
             let url = dir.appendingPathComponent("pet-\(pet.name)")
             guard let attrs = try? fm.attributesOfItem(atPath: url.path),
                   let mtime = attrs[.modificationDate] as? Date
@@ -887,7 +1008,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     setScale(sc)
                 }
                 if let name = kv["pet"],
-                   let pet = pets.first(where: { $0.name == name }),
+                   let pet = Optional(ensurePet(name)),
                    let event = kv["event"], !event.isEmpty {
                     applyEvent(pet, event)
                 }
@@ -924,6 +1045,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applyEvent(_ pet: Pet, _ event: String,
                     text: String? = nil) {
+        if event == "evict_art" {
+            // The pet was disabled: off screen now, and
+            // its pulled art goes back to the store.
+            if dragPet === pet { dragPet = nil }
+            pet.present = false
+            pet.state = .hidden
+            pet.pendingArrival = nil
+            pet.images = [:]
+            art.evict(pet.name)
+            return
+        }
+        let arrivals = ["portal_in", "arrive_left", "arrive_right"]
+        if arrivals.contains(event), pet.images.isEmpty {
+            // No art on this screen: pull the pack, then
+            // arrive. If the pull fails the pet stays
+            // absent rather than appearing frameless.
+            pet.pendingArrival = (event, text)
+            art.pull(pet.name) { [weak self, weak pet] ok in
+                guard let self, let pet else { return }
+                let pending = pet.pendingArrival
+                pet.pendingArrival = nil
+                if ok, let pending {
+                    pet.images = ArtStore.loadImages(pet.name)
+                    applyEvent(pet, pending.event,
+                               text: pending.text)
+                }
+            }
+            return
+        }
         let now = Date()
         // A coordinator event ends any drag or fall cleanly.
         if dragPet === pet { dragPet = nil }

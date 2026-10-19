@@ -1,13 +1,13 @@
-# Pets
+# Nimolo
 
 A cast of characters who live on your screens.
 
-Pets is a small ambient platform: a handful of pets wander
+Nimolo is a small ambient platform: a handful of companions wander
 between the displays in a house, walking off one screen and
 arriving on the next, sitting with you while you work, and
 reacting to your day. One coordinator service (not included
 in this edition) owns where every pet is; each screen is a
-renderer that draws whichever pets are currently visiting.
+renderer that draws whichever companions are currently visiting.
 
 This repository is the public edition: the macOS renderer,
 the asset pipelines, and the cast artwork. It is a curated
@@ -23,14 +23,14 @@ and the approach can be read, borrowed, and built on.
 
 Every cast member has the same anatomy: a persona, a mood
 that drifts with events, a memory of recent happenings, a
-vocabulary, and a driver. Pets whose driver is a live agent
+vocabulary, and a driver. Companions whose driver is a live agent
 show the agent's working state on their bodies; when the
 agent is away, a character engine understudies the body and
 sticks to character speech.
 
 ## What's here
 
-- `mac/` The macOS app. The pets live in a strip along the
+- `mac/` The macOS app, Nimolo Dock. The companions live in a strip along the
   Dock: spring physics, drag and throw, window-aware play
   (they gather near the window you are working in), and a
   social layer. It renders real sprite animation and takes
@@ -39,7 +39,7 @@ sticks to character speech.
   what you are doing (coding, writing, meeting, browsing,
   idle, away) on the Mac and posts only that classification,
   plus calendar pressure, to the coordinator. Raw window
-  titles and URLs never leave the machine. The pets use the
+  titles and URLs never leave the machine. The companions use the
   feed to warn you about a meeting in a few minutes or to
   nudge you, gently and then less gently, to take a break.
 - `faces/` The 1-bit face pack for a 128 by 128 monochrome
@@ -53,7 +53,7 @@ sticks to character speech.
 
 ## The coordinator
 
-The coordinator (pets-mcp in the author's house) is a
+The coordinator (nimolo-mcp in the author's house) is a
 single Python service that owns the registry, each pet's
 tracked location, roaming, reconciliation against live
 screen readback, and an event bus the screens speak. It is
@@ -62,7 +62,7 @@ The wire shape is simple: screens publish their live state
 about once a second and subscribe to a stream of intents
 (arrive, depart, portal, greet, say), with a file-based
 channel underneath as fallback. A bus token in
-`~/.config/pets/bus-token` authenticates a screen; the
+`~/.config/nimolo/bus-token` authenticates a screen; the
 coordinator's own API secret never reaches a screen.
 
 ## Running the Mac app
@@ -72,14 +72,14 @@ app runs happily in ambient-only mode with whoever is home.
 
 1. Point the app at your coordinator: write its base URL
    (for example `http://192.168.1.10:7891`) into
-   `~/.config/pets/bus-host`, put the shared bus token in
-   `~/.config/pets/bus-token`, and replace
+   `~/.config/nimolo/bus-host`, put the shared bus token in
+   `~/.config/nimolo/bus-token`, and replace
    YOUR-COORDINATOR-HOST in `mac/Info.plist` with the same
    host so the ATS exception matches.
-2. Edit the path in `mac/io.niclydon.pets.plist` to your
+2. Edit the path in `mac/io.niclydon.nimolo-dock.plist` to your
    own home directory.
 3. Run `mac/build.sh`. It compiles the app, installs it to
-   `~/Applications/Pets.app`, and registers the LaunchAgent.
+   `~/Applications/Nimolo Dock.app`, and registers the LaunchAgent.
 
 The context reporter is optional: install
 `mac/context_reporter.py` behind a LaunchAgent that runs
