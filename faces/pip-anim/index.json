@@ -1,0 +1,26 @@
+{
+ "lucas/content": {
+  "frames": 30,
+  "fps": 6
+ },
+ "mike/content": {
+  "frames": 30,
+  "fps": 6
+ },
+ "carbon/content": {
+  "frames": 30,
+  "fps": 6
+ },
+ "carbon/love": {
+  "frames": 30,
+  "fps": 6
+ },
+ "nova/content": {
+  "frames": 30,
+  "fps": 6
+ },
+ "aria/content": {
+  "frames": 30,
+  "fps": 6
+ }
+}
