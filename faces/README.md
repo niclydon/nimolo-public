@@ -83,5 +83,5 @@ the house that pet currently is.
   matters at 1.5 inches.
 - Carbon's sad ears fold so flat he reads dog-like out of
   context; in sequence on the device it parses as sad cat.
-- Lucas's open eyes are soft rings at 128 px; his mouths
-  and fringe carry the expressions.
+- The unnamed friend's open eyes are soft rings at
+  128 px; his mouths and fringe carry the expressions.

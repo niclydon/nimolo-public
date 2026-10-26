@@ -16,7 +16,7 @@ and the approach can be read, borrowed, and built on.
 
 ## The cast
 
-- Lucas and Mike, two friends, and Carbon the cat.
+- Mike and one more friend, who is not named in public, and Carbon the cat.
 - Nova and ARIA, the house's AI agents, embodied as cast
   members whose behaviour is driven by the agents' real
   state rather than a random number generator.
